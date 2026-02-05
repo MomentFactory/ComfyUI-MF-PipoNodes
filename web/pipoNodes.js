@@ -52,6 +52,31 @@ app.registerExtension({
         widget.inputEl.style.opacity = 0.6
         widget.value = '🎲 Roll the dice!'
 
+        // Toggle custom_faces visibility based on dice selection
+        const diceWidget = this.widgets?.find((w) => w.name === 'dice')
+        const facesWidget = this.widgets?.find((w) => w.name === 'custom_faces')
+
+        const updateFacesVisibility = () => {
+          if (facesWidget) {
+            const isCustom = diceWidget?.value === 'DCustom'
+            facesWidget.type = isCustom ? 'number' : 'hidden'
+            if (facesWidget.inputEl) {
+              facesWidget.inputEl.style.display = isCustom ? '' : 'none'
+            }
+            this.setDirtyCanvas(true, true)
+          }
+        }
+
+        if (diceWidget) {
+          const origCallback = diceWidget.callback
+          diceWidget.callback = function (value) {
+            origCallback?.call(this, value)
+            updateFacesVisibility()
+          }
+          // Set initial state
+          updateFacesVisibility()
+        }
+
         return r
       }
 
@@ -88,10 +113,9 @@ app.registerExtension({
         widget.inputEl.style.opacity = 0.6
         widget.inputEl.style.fontFamily = 'monospace'
         widget.inputEl.style.fontSize = '12px'
+        widget.inputEl.style.overflow = 'auto'
         widget.value = '📝 Log file content will appear here...'
-
-        widget.inputEl.style.height = '150px'
-        widget.inputEl.style.maxHeight = '150px'
+        widget.inputEl.rows = 5
 
         return r
       }
@@ -105,14 +129,16 @@ app.registerExtension({
 
         if (widget && message.log_display?.[0]) {
           widget.value = message.log_display[0]
+          const lines = message.log_display[0].split('\n').length
+          widget.inputEl.rows = Math.min(Math.max(lines, 5), 25)
         }
       }
     }
 
     // ====================================================================
-    // MODULO
+    // LOG READER
     // ====================================================================
-    if (nodeData.name === 'MF_Modulo') {
+    if (nodeData.name === 'MF_LogReader') {
       const onNodeCreated = nodeType.prototype.onNodeCreated
 
       nodeType.prototype.onNodeCreated = function () {
@@ -120,14 +146,18 @@ app.registerExtension({
 
         const widget = ComfyWidgets.STRING(
           this,
-          'result',
+          'log_display',
           ['STRING', { multiline: true }],
           app
         ).widget
 
         widget.inputEl.readOnly = true
         widget.inputEl.style.opacity = 0.6
-        widget.value = '🔢 Calculate modulo'
+        widget.inputEl.style.fontFamily = 'monospace'
+        widget.inputEl.style.fontSize = '12px'
+        widget.inputEl.style.overflow = 'auto'
+        widget.value = '📖 Log file content will appear here...'
+        widget.inputEl.rows = 5
 
         return r
       }
@@ -137,16 +167,21 @@ app.registerExtension({
       nodeType.prototype.onExecuted = function (message) {
         onExecuted?.apply(this, arguments)
 
-        const widget = this.widgets?.find((w) => w.name === 'result')
+        const widget = this.widgets?.find((w) => w.name === 'log_display')
 
-        if (widget && message.text?.[0]) {
-          widget.value = message.text[0]
+        if (widget && message.log_display?.[0]) {
+          widget.value = message.log_display[0]
+          const lines = message.log_display[0].split('\n').length
+          widget.inputEl.rows = Math.min(Math.max(lines, 5), 25)
         }
       }
     }
 
     // ====================================================================
-    // MODULO ADVANCED
+    // MODULO
+    // ====================================================================
+    // ====================================================================
+    // MODULO (MF_ModuloAdvanced)
     // ====================================================================
     if (nodeData.name === 'MF_ModuloAdvanced') {
       const onNodeCreated = nodeType.prototype.onNodeCreated
@@ -165,8 +200,15 @@ app.registerExtension({
         widget.inputEl.style.opacity = 0.6
         widget.value = '🔢 Calculate modulo\n🔄 Cycle: 0'
 
-        widget.inputEl.style.height = '60px'
-        widget.inputEl.style.maxHeight = '60px'
+        // Use rows instead of fixed pixel height to avoid overlap
+        widget.inputEl.rows = 2
+        widget.inputEl.style.resize = 'none'
+        widget.inputEl.style.overflow = 'hidden'
+
+        // Ensure the node computes enough size for the widget
+        widget.computeSize = function () {
+          return [this.parent?.size?.[0] || 220, 50]
+        }
 
         return r
       }
@@ -219,20 +261,26 @@ app.registerExtension({
           { serialize: false }
         )
 
+        // Create container div — will be sized explicitly in _syncChartSize
+        const container = document.createElement('div')
+        container.style.overflow = 'hidden'
+        container.style.position = 'relative'
+        container.style.boxSizing = 'border-box'
+
         // Create canvas for the graph
         const canvas = document.createElement('canvas')
-        canvas.width = 400
-        canvas.height = 300
-        canvas.style.width = '100%'
-        canvas.style.height = 'auto'
+        canvas.style.display = 'block'
+        container.appendChild(canvas)
 
-        // Add canvas widget (no label)
-        const canvasWidget = this.addDOMWidget('graph_canvas', 'canvas', canvas, {
+        // Add container widget (no label)
+        const canvasWidget = this.addDOMWidget('graph_canvas', 'canvas', container, {
           serialize: false,
           hideOnZoom: false
         })
+
+        // Tell ComfyUI how much space the widget wants as a minimum
         canvasWidget.computeSize = function () {
-          return [400, 300]
+          return [300, 200]
         }
 
         // Remove the label element if it exists
@@ -240,14 +288,45 @@ app.registerExtension({
           canvasWidget.label = ''
         }
 
-        // Store canvas reference
+        // Store references
         this.graphCanvas = canvas
+        this.graphContainer = container
         this.canvasWidget = canvasWidget
 
-        // Initialize Chart.js chart
+        // Initialize Chart.js chart (responsive OFF — we manage size ourselves)
         this.initChart()
 
+        // Set initial node size
+        this.setSize([350, 350])
+        this._syncChartSize()
+
         return r
+      }
+
+      // Compute available pixel size and apply to container + chart
+      nodeType.prototype._syncChartSize = function () {
+        if (!this.graphContainer || !this.chart || this._isBeingRemoved) return
+
+        // Node layout overhead:
+        // ~26px title, ~20px Y input slot, ~26px per button widget x2 = ~98px
+        // Plus ~12px bottom padding
+        const overhead = 110
+        const hPad = 30
+
+        const w = Math.max(this.size[0] - hPad, 100)
+        const h = Math.max(this.size[1] - overhead, 80)
+
+        this.graphContainer.style.width = w + 'px'
+        this.graphContainer.style.height = h + 'px'
+
+        this.chart.resize(w, h)
+      }
+
+      // Hook into node resize to update chart dimensions
+      const onResize = nodeType.prototype.onResize
+      nodeType.prototype.onResize = function (size) {
+        onResize?.apply(this, arguments)
+        this._syncChartSize?.()
       }
 
       // Initialize Chart.js instance
@@ -314,7 +393,7 @@ app.registerExtension({
               }]
             },
             options: {
-              responsive: true,
+              responsive: false,
               maintainAspectRatio: false,
               animation: {
                 duration: 300
@@ -409,6 +488,8 @@ app.registerExtension({
           this.chart.data.labels = xValues
           this.chart.data.datasets[0].data = yValues
           this.chart.update()
+          // Ensure chart fills the current node size
+          this._syncChartSize?.()
         } catch (error) {
           console.error('Error updating chart:', error)
         }
@@ -633,6 +714,15 @@ app.registerExtension({
           // Ignore
         }
 
+        // Clean up container reference
+        try {
+          if (this.graphContainer) {
+            this.graphContainer = null
+          }
+        } catch (e) {
+          // Ignore
+        }
+
         // Clean up node ID
         try {
           if (this.graphNodeId) {
@@ -687,6 +777,12 @@ app.registerExtension({
       nodeType.prototype.onNodeCreated = function () {
         const r = onNodeCreated?.apply(this, arguments)
 
+        // Randomize storySeed widget on node creation
+        const seedWidget = this.widgets?.find(w => w.name === 'storySeed')
+        if (seedWidget) {
+          seedWidget.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+        }
+
         // Add reset button
         this.addWidget(
           'button',
@@ -714,38 +810,39 @@ app.registerExtension({
           widget.inputEl.style.textAlign = 'center'
           widget.inputEl.style.fontFamily = 'monospace'
         }
-        widget.value = 'Step: 0 | Seed: 0'
+        widget.value = 'Step: 0'
 
         return r
       }
 
-      // Add reset method
+      // Reset: set step to 0 via API, optionally randomize seed client-side
       nodeType.prototype.resetStory = async function () {
         const projectNameWidget = this.widgets?.find(w => w.name === 'projectName')
-        const randomizeSeedWidget = this.widgets?.find(w => w.name === 'randomize_seed_on_reset')
-
         const projectName = projectNameWidget ? projectNameWidget.value : 'MyProject'
-        const randomizeSeed = randomizeSeedWidget ? randomizeSeedWidget.value : true
 
         try {
           const response = await api.fetchApi('/story_driver/reset', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              project_name: projectName,
-              randomize_seed: randomizeSeed
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_name: projectName })
           })
 
           if (response.ok) {
-            const data = await response.json()
+            // Randomize seed if toggle is on
+            const randomizeSeedWidget = this.widgets?.find(w => w.name === 'randomize_seed_on_reset')
+            const seedWidget = this.widgets?.find(w => w.name === 'storySeed')
+
+            if (randomizeSeedWidget?.value && seedWidget) {
+              seedWidget.value = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+            }
+
+            // Update status display
             const statusWidget = this.widgets?.find(w => w.name === 'status_display')
             if (statusWidget) {
-              statusWidget.value = `Step: ${data.step} | Seed: ${data.seed}`
+              statusWidget.value = `Step: 0 | Seed: ${seedWidget?.value || 0}`
             }
-            console.log(`🔄 MF Story Driver reset: ${projectName} - Step: ${data.step}, Seed: ${data.seed}`)
+
+            console.log(`🔄 MF Story Driver reset: ${projectName}`)
           } else {
             console.error('Error resetting story:', await response.text())
           }
