@@ -1,124 +1,50 @@
-# MF PipoNodes - Git Ignore File
+# Dependencies
+node_modules/
 
-# ============================================================================
-# USER STATE FILES (Generated at runtime, should not be tracked)
-# ============================================================================
-graph_plotter_state.json
-story_driver_state.json
+# Environment
+.env
+.env.local
+.env.*.local
 
-# ============================================================================
-# PYTHON
-# ============================================================================
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
+# Build & Output
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+build/
 
-# PyInstaller
-*.manifest
-*.spec
+# Test Coverage & Snapshots
+coverage/
+__image_snapshots__/
+junit.xml
 
-# Unit test / coverage
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# Analytics Data (generated at runtime)
+data/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
-
-# ============================================================================
-# IDE / EDITORS
-# ============================================================================
-# Visual Studio Code
+# IDE & Editor
 .vscode/
-*.code-workspace
-
-# PyCharm
 .idea/
-*.iml
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
 *.swp
 *.swo
 *~
 
-# Emacs
-*~
-\#*\#
-.\#*
-
-# ============================================================================
-# OPERATING SYSTEMS
-# ============================================================================
-# macOS
+# OS Files
 .DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Windows
 Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 
-# Linux
-*~
-
-# ============================================================================
-# LOGS AND DATABASES
-# ============================================================================
+# Logs
 *.log
-*.sql
-*.sqlite
-*.db
+npm-debug.log*
 
-# ============================================================================
-# TEMPORARY FILES
-# ============================================================================
+# Project-specific
+projects/
+.config*
+
+# Temporary files
 *.tmp
 *.temp
-*.bak
-*.swp
-*.swo
+.cache/
+
+# AI files
+.claude
+
+# Docker
+docker-compose.override.local.yml
+.docker/
