@@ -1,7 +1,7 @@
 [project]
 name = "mf-piponodes"
 description = "A comprehensive collection of utility and quality-of-life nodes for ComfyUI workflows"
-version = "0.0.1"
+version = "1.0.0"
 license = {file = "LICENSE.md"} 
 classifiers = ["Operating System :: OS Independent"]
 requires-python = ">=3.9"
