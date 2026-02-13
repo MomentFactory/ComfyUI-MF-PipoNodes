@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build & Output
+dist/
+build/
+
+# Test Coverage & Snapshots
+coverage/
+__image_snapshots__/
+junit.xml
+
+# Analytics Data (generated at runtime)
+data/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Project-specific
+projects/
+.config*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# AI files
+.claude
+
+# Docker
+docker-compose.override.local.yml
+.docker/
